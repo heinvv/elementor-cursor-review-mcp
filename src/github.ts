@@ -74,3 +74,23 @@ export function extractAddedLines(patch: string): string[] {
     .filter(line => line.startsWith('+') && !line.startsWith('+++'))
     .map(line => line.slice(1));
 }
+
+export function getAddedLinesWithPositions(patch: string): { line: string; position: number }[] {
+  if (!patch) return [];
+  const result: { line: string; position: number }[] = [];
+  const lines = patch.split('\n');
+  let position = 0;
+  for (const raw of lines) {
+    const isAdd = raw.startsWith('+') && !raw.startsWith('+++');
+    const isRemove = raw.startsWith('-') && !raw.startsWith('---');
+    if (isAdd) {
+      position += 1;
+      result.push({ line: raw.slice(1), position });
+    } else if (isRemove) {
+      // do not advance position
+    } else {
+      position += 1;
+    }
+  }
+  return result;
+}

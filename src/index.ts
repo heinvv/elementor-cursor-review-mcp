@@ -1,23 +1,62 @@
 #!/usr/bin/env node
 import { z } from 'zod';
-import { fetchPR, extractAddedLines } from './github';
+import { fetchPR, extractAddedLines, getAddedLinesWithPositions } from './github';
+import { analyzeAddedLines } from './analyze';
+import { postReviewComments } from './post-comments';
 import { RuleLoader } from './rules';
+import { buildLLMPrompt, parseLLMFindings } from './llm';
 
 const argsSchema = z.object({
   prRef: z.string().min(1),
-  showRules: z.boolean().optional(),
-});
+}).or(
+  z.object({ prRef: z.string().default(''), }).partial()
+)
 
-function getCliArg(): string {
-  const candidate = process.argv[2] ?? '';
-  const parsed = argsSchema.safeParse({ prRef: candidate });
-  if (!parsed.success) {
-    console.error('Usage: node dist/index.js <PR_URL_OR_NUMBER>');
-    console.error('Example: node dist/index.js https://github.com/elementor/hello-commerce/pull/203');
-    console.error('Example: node dist/index.js 203 (requires GITHUB_DEFAULT_OWNER and GITHUB_DEFAULT_REPO env vars)');
-    process.exit(1);
+type CLIOptions = {
+  prRef?: string
+  showRules?: boolean
+  exportPromptsDir?: string
+  ingestResultsDir?: string
+  dryRun: boolean
+}
+
+function parseCliArgs(): CLIOptions {
+  const opts: CLIOptions = { dryRun: process.env.DRY_RUN !== 'false' }
+  const argv = process.argv.slice(2)
+  for (let i = 0; i < argv.length; i += 1) {
+    const a = argv[i]
+    if (a === '--show-rules' || a === '-r') {
+      opts.showRules = true
+      continue
+    }
+    if (a === '--export-prompts') {
+      opts.exportPromptsDir = argv[i + 1]
+      i += 1
+      continue
+    }
+    if (a === '--ingest-results') {
+      opts.ingestResultsDir = argv[i + 1]
+      i += 1
+      continue
+    }
+    if (a === '--no-dry-run') {
+      opts.dryRun = false
+      continue
+    }
+    if (!a.startsWith('-') && !opts.prRef) {
+      const parsed = argsSchema.safeParse({ prRef: a })
+      if (!parsed.success) continue
+      opts.prRef = a
+    }
   }
-  return parsed.data.prRef.trim();
+
+  if (!opts.showRules && !opts.prRef) {
+    console.error('Usage: node dist/index.js <PR_URL_OR_NUMBER> [--export-prompts <dir>] [--ingest-results <dir>] [--no-dry-run]')
+    console.error('       node dist/index.js --show-rules')
+    process.exit(1)
+  }
+
+  return opts
 }
 
 function parsePrRef(input: string): { owner?: string; repo?: string; prNumber: string } {
@@ -33,10 +72,10 @@ function parsePrRef(input: string): { owner?: string; repo?: string; prNumber: s
 }
 
 async function main(): Promise<void> {
-  const prRefRaw = getCliArg();
+  const cli = parseCliArgs();
   
   // Check for special flags
-  if (prRefRaw === '--show-rules' || prRefRaw === '-r') {
+  if (cli.showRules) {
     const ruleLoader = new RuleLoader();
     const rules = ruleLoader.loadRules();
     
@@ -56,7 +95,7 @@ async function main(): Promise<void> {
     return;
   }
   
-  const parsed = parsePrRef(prRefRaw);
+  const parsed = parsePrRef(String(cli.prRef));
   
   const owner = parsed.owner || process.env.GITHUB_DEFAULT_OWNER || 'elementor';
   const repo = parsed.repo || process.env.GITHUB_DEFAULT_REPO || 'hello-commerce';
@@ -84,6 +123,7 @@ async function main(): Promise<void> {
     console.log(`Rules loaded: ${rules.length}`);
     
     console.log('\n=== CHANGED FILES ===');
+    const allFindings = [] as ReturnType<typeof analyzeAddedLines>;
     for (const file of prData.files) {
       console.log(`\n${file.filename} (${file.status})`);
       console.log(`  +${file.additions} -${file.deletions}`);
@@ -98,6 +138,18 @@ async function main(): Promise<void> {
           if (addedLines.length > 5) {
             console.log(`    ... and ${addedLines.length - 5} more`);
           }
+
+          // Heuristic analyzer for now
+          const addedWithPos = getAddedLinesWithPositions(file.patch);
+          const findings = analyzeAddedLines(file.filename, addedWithPos.map(x => x.line));
+          // Map findings to diff positions (best effort; we used index-based earlier)
+          findings.forEach((f) => {
+            const idx = f.position - 1;
+            if (addedWithPos[idx]) f.position = addedWithPos[idx].position;
+          });
+          if (findings.length > 0) {
+            allFindings.push(...findings);
+          }
         }
       }
     }
@@ -106,7 +158,27 @@ async function main(): Promise<void> {
       console.log('\n=== READY FOR ANALYSIS ===');
       console.log('✅ PR content fetched');
       console.log('✅ Rules loaded');
-      console.log('🚀 Ready for Phase 3: LLM Analysis');
+      console.log('🚀 Prompt export available via --export-prompt <file>');
+    }
+
+    if (allFindings.length > 0) {
+      console.log(`\n=== HEURISTIC FINDINGS (${allFindings.length}) ===`);
+      allFindings.slice(0, 10).forEach(f => {
+        console.log(`- ${f.path} @${f.position}: ${f.message}`);
+      });
+      if (allFindings.length > 10) {
+        console.log(`... and ${allFindings.length - 10} more`);
+      }
+
+      const dryRun = cli.dryRun;
+      await postReviewComments({
+        owner,
+        repo,
+        pullNumber: Number(parsed.prNumber),
+        findings: allFindings,
+        dryRun,
+      });
+      console.log(dryRun ? '\n[DRY RUN] Review comments not posted' : '\nReview comments posted');
     }
   } catch (error) {
     console.error('Error:', error instanceof Error ? error.message : String(error));
