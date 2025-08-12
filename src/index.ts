@@ -124,6 +124,7 @@ async function main(): Promise<void> {
     
     console.log('\n=== CHANGED FILES ===');
     const allFindings = [] as ReturnType<typeof analyzeAddedLines>;
+    const analyses: Array<{ filePath: string; addedLines: string[]; addedWithPos: { line: string; position: number }[]; rulesForFile: ReturnType<RuleLoader['getRulesForFile']> }> = []
     for (const file of prData.files) {
       console.log(`\n${file.filename} (${file.status})`);
       console.log(`  +${file.additions} -${file.deletions}`);
@@ -150,6 +151,8 @@ async function main(): Promise<void> {
           if (findings.length > 0) {
             allFindings.push(...findings);
           }
+          const rulesForFile = ruleLoader.getRulesForFile(file.filename)
+          analyses.push({ filePath: file.filename, addedLines, addedWithPos, rulesForFile })
         }
       }
     }
@@ -179,6 +182,65 @@ async function main(): Promise<void> {
         dryRun,
       });
       console.log(dryRun ? '\n[DRY RUN] Review comments not posted' : '\nReview comments posted');
+    }
+
+    // Export prompts if requested
+    if (cli.exportPromptsDir) {
+      const fs = await import('fs')
+      const path = await import('path')
+      const dir = path.resolve(cli.exportPromptsDir)
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+      const promptsDir = dir
+      const resultsDir = path.join(dir, 'results')
+      if (!fs.existsSync(resultsDir)) fs.mkdirSync(resultsDir, { recursive: true })
+      const manifest: Array<{ filePath: string; promptPath: string; expectedResultPath: string }> = []
+      analyses.forEach((a) => {
+        const safeName = a.filePath.replace(/[^a-z0-9_.-]/gi, '_')
+        const prompt = buildLLMPrompt({ filePath: a.filePath, addedLines: a.addedLines, rules: a.rulesForFile })
+        const promptPath = path.join(promptsDir, `${safeName}.prompt.txt`)
+        const expectedResultPath = path.join(resultsDir, `${safeName}.json`)
+        fs.writeFileSync(promptPath, prompt, 'utf8')
+        manifest.push({ filePath: a.filePath, promptPath, expectedResultPath })
+      })
+      fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify(manifest, null, 2), 'utf8')
+      console.log(`\nExported ${manifest.length} prompts to ${promptsDir}`)
+      console.log(`Write LLM JSON results to the corresponding files under ${resultsDir} and re-run with --ingest-results ${resultsDir}`)
+    }
+
+    // Ingest results if requested
+    if (cli.ingestResultsDir) {
+      const fs = await import('fs')
+      const path = await import('path')
+      const dir = path.resolve(cli.ingestResultsDir)
+      if (!fs.existsSync(dir)) {
+        console.error(`Results directory not found: ${dir}`)
+        process.exit(1)
+      }
+      const files = fs.readdirSync(dir).filter((f: string) => f.endsWith('.json'))
+      const llmFindings = [] as typeof allFindings
+      for (const fileName of files) {
+        const full = path.join(dir, fileName)
+        const base = fileName.replace(/\.json$/, '')
+        const analysis = analyses.find((a) => a.filePath.replace(/[^a-z0-9_.-]/gi, '_') === base)
+        if (!analysis) continue
+        const text = fs.readFileSync(full, 'utf8')
+        const parsedFindings = parseLLMFindings(text, analysis.filePath)
+        // map line numbers to diff positions
+        parsedFindings.forEach((f) => {
+          const idx = f.position - 1
+          if (analysis.addedWithPos[idx]) f.position = analysis.addedWithPos[idx].position
+        })
+        llmFindings.push(...parsedFindings)
+      }
+      if (llmFindings.length > 0) {
+        console.log(`\n=== LLM FINDINGS (${llmFindings.length}) ===`)
+        llmFindings.slice(0, 10).forEach((f) => console.log(`- ${f.path} @${f.position}: ${f.message}`))
+        const dryRun = cli.dryRun
+        await postReviewComments({ owner, repo, pullNumber: Number(parsed.prNumber), findings: llmFindings, dryRun })
+        console.log(dryRun ? '\n[DRY RUN] LLM review comments not posted' : '\nLLM review comments posted')
+      } else {
+        console.log('\nNo LLM findings ingested.')
+      }
     }
   } catch (error) {
     console.error('Error:', error instanceof Error ? error.message : String(error));

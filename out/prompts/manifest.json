@@ -1,0 +1,7 @@
+[
+  {
+    "filePath": ".github/workflows/playwright-with-specific-elementor-version.yml",
+    "promptPath": "/Users/janvanvlastuin1981/Local Sites/elementor/app/public/wp-content/elementor-cursor-review-mcp/out/prompts/.github_workflows_playwright-with-specific-elementor-version.yml.prompt.txt",
+    "expectedResultPath": "/Users/janvanvlastuin1981/Local Sites/elementor/app/public/wp-content/elementor-cursor-review-mcp/out/prompts/results/.github_workflows_playwright-with-specific-elementor-version.yml.json"
+  }
+]

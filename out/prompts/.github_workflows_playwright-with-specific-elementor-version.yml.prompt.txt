@@ -1,0 +1,31 @@
+You are a strict code review assistant. Review only the ADDED LINES against the provided guidelines.
+Return a compact JSON array of findings with this shape:
+[{ "message": string, "line": number, "ruleId"?: string, "severity"?: "error"|"warning"|"info" }]
+
+File: .github/workflows/playwright-with-specific-elementor-version.yml
+Added lines:
+1: 
+2:                 echo "Building @elementor packages monorepo (if present)..."
+3:                 if [ -d "./packages" ]; then
+4:                   echo "Found ./packages workspace. Installing and building it."
+5:                   cd ./packages
+6:                   npm ci || { echo "⚠️ npm ci failed in ./packages"; exit 1; }
+7:                   npm run build || { echo "⚠️ npm run build failed in ./packages"; exit 1; }
+8:                   cd ..
+9:                 else
+10:                   echo "No ./packages workspace found. Skipping monorepo build."
+11:                 fi
+12: 
+13:                 echo "Building Elementor packages from plugin scripts (if available)..."
+14:                 if npm run --silent | grep -q "scripts:packages"; then
+15:                   npm run scripts:packages
+16:                 elif npm run --silent | grep -q "build:packages"; then
+17:                   npm run build:packages
+18:                 else
+19:                   echo "No package build script defined in package.json."
+20:                 fi
+21: 
+22:                echo "Building Elementor (grunt build)..."
+23:                npx grunt build
+
+Guidelines:

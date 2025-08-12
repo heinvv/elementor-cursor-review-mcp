@@ -12,7 +12,8 @@
     "zod": "^3.23.8",
     "@octokit/rest": "^20.0.2",
     "dotenv": "^16.3.1",
-    "gray-matter": "^4.0.3"
+    "gray-matter": "^4.0.3",
+    "minimatch": "^9.0.3"
   },
   "devDependencies": {
     "ts-node": "^10.9.2",

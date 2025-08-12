@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import matter from 'gray-matter';
+import { minimatch } from 'minimatch';
 import { z } from 'zod';
 
 const ruleMetadataSchema = z.object({
@@ -136,5 +137,13 @@ export class RuleLoader {
     }
 
     return formatted;
+  }
+
+  getRulesForFile(filePath: string): Rule[] {
+    const normalized = filePath.replace(/\\/g, '/');
+    return Array.from(this.rules.values()).filter((rule) => {
+      if (!rule.metadata.filePatterns || rule.metadata.filePatterns.length === 0) return true;
+      return rule.metadata.filePatterns.some((pattern) => minimatch(normalized, pattern, { nocase: true }))
+    });
   }
 }
