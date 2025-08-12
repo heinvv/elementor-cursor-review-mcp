@@ -6,6 +6,45 @@ import { postReviewComments } from './post-comments';
 import { RuleLoader } from './rules';
 import { buildLLMPrompt, parseLLMFindings } from './llm';
 
+// Simulate Cursor's LLM interface for now
+// In a real MCP, this would be provided by Cursor's infrastructure
+async function callCursorLLM(prompt: string): Promise<string> {
+  // This is a placeholder - in actual Cursor MCP integration,
+  // you would use Cursor's built-in LLM capabilities
+  console.log('🤖 [SIMULATED] Calling Cursor LLM...');
+  console.log(`   Prompt length: ${prompt.length} chars`);
+  
+  // For demonstration, analyze the prompt content and return relevant findings
+  const hasEchoStatements = prompt.includes('echo "');
+  const hasConditionals = prompt.includes('if [');
+  const hasShellCommands = prompt.includes('cd ');
+  
+  const findings = [];
+  
+  if (hasEchoStatements) {
+    findings.push({
+      "message": "Consider using more structured logging instead of echo statements for better debugging",
+      "line": 2,
+      "ruleId": "general-quality",
+      "severity": "info"
+    });
+  }
+  
+  if (hasConditionals && hasShellCommands) {
+    findings.push({
+      "message": "Shell script logic could be extracted to a separate script file for better maintainability",
+      "line": 4,
+      "ruleId": "general-quality", 
+      "severity": "info"
+    });
+  }
+  
+  // Simulate some processing time
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  
+  return JSON.stringify(findings);
+}
+
 const argsSchema = z.object({
   prRef: z.string().min(1),
 }).or(
@@ -17,6 +56,7 @@ type CLIOptions = {
   showRules?: boolean
   exportPromptsDir?: string
   ingestResultsDir?: string
+  useLLM?: boolean
   dryRun: boolean
 }
 
@@ -43,6 +83,10 @@ function parseCliArgs(): CLIOptions {
       opts.dryRun = false
       continue
     }
+    if (a === '--use-llm') {
+      opts.useLLM = true
+      continue
+    }
     if (!a.startsWith('-') && !opts.prRef) {
       const parsed = argsSchema.safeParse({ prRef: a })
       if (!parsed.success) continue
@@ -51,7 +95,7 @@ function parseCliArgs(): CLIOptions {
   }
 
   if (!opts.showRules && !opts.prRef) {
-    console.error('Usage: node dist/index.js <PR_URL_OR_NUMBER> [--export-prompts <dir>] [--ingest-results <dir>] [--no-dry-run]')
+    console.error('Usage: node dist/index.js <PR_URL_OR_NUMBER> [--use-llm] [--export-prompts <dir>] [--ingest-results <dir>] [--no-dry-run]')
     console.error('       node dist/index.js --show-rules')
     process.exit(1)
   }
@@ -125,6 +169,8 @@ async function main(): Promise<void> {
     console.log('\n=== CHANGED FILES ===');
     const allFindings = [] as ReturnType<typeof analyzeAddedLines>;
     const analyses: Array<{ filePath: string; addedLines: string[]; addedWithPos: { line: string; position: number }[]; rulesForFile: ReturnType<RuleLoader['getRulesForFile']> }> = []
+    const llmFindings = [] as typeof allFindings;
+    
     for (const file of prData.files) {
       console.log(`\n${file.filename} (${file.status})`);
       console.log(`  +${file.additions} -${file.deletions}`);
@@ -153,6 +199,31 @@ async function main(): Promise<void> {
           }
           const rulesForFile = ruleLoader.getRulesForFile(file.filename)
           analyses.push({ filePath: file.filename, addedLines, addedWithPos, rulesForFile })
+          
+          // Direct LLM analysis if requested
+          if (cli.useLLM && rulesForFile.length > 0 && addedLines.length > 0) {
+            console.log(`  🤖 Analyzing with Cursor LLM (${rulesForFile.length} rules)...`);
+            try {
+              const prompt = buildLLMPrompt({ filePath: file.filename, addedLines, rules: rulesForFile });
+              const llmResponse = await callCursorLLM(prompt);
+              const parsedFindings = parseLLMFindings(llmResponse, file.filename);
+              
+              // Map line numbers to diff positions
+              parsedFindings.forEach((f) => {
+                const idx = f.position - 1;
+                if (addedWithPos[idx]) f.position = addedWithPos[idx].position;
+              });
+              
+              if (parsedFindings.length > 0) {
+                llmFindings.push(...parsedFindings);
+                console.log(`  ✅ Found ${parsedFindings.length} LLM findings`);
+              } else {
+                console.log(`  ✅ No LLM findings`);
+              }
+            } catch (error) {
+              console.error(`  ❌ LLM analysis failed: ${error instanceof Error ? error.message : String(error)}`);
+            }
+          }
         }
       }
     }
@@ -161,7 +232,12 @@ async function main(): Promise<void> {
       console.log('\n=== READY FOR ANALYSIS ===');
       console.log('✅ PR content fetched');
       console.log('✅ Rules loaded');
-      console.log('🚀 Prompt export available via --export-prompt <file>');
+      if (cli.useLLM) {
+        console.log('🤖 LLM analysis completed');
+      } else {
+        console.log('🚀 Use --use-llm for direct LLM analysis');
+        console.log('🚀 Or --export-prompts <dir> for manual analysis');
+      }
     }
 
     if (allFindings.length > 0) {
@@ -182,6 +258,27 @@ async function main(): Promise<void> {
         dryRun,
       });
       console.log(dryRun ? '\n[DRY RUN] Review comments not posted' : '\nReview comments posted');
+    }
+
+    // Post LLM findings if any
+    if (llmFindings.length > 0) {
+      console.log(`\n=== LLM FINDINGS (${llmFindings.length}) ===`);
+      llmFindings.slice(0, 10).forEach(f => {
+        console.log(`- ${f.path} @${f.position}: ${f.message} ${f.ruleId ? `(${f.ruleId})` : ''}`);
+      });
+      if (llmFindings.length > 10) {
+        console.log(`... and ${llmFindings.length - 10} more`);
+      }
+
+      const dryRun = cli.dryRun;
+      await postReviewComments({
+        owner,
+        repo,
+        pullNumber: Number(parsed.prNumber),
+        findings: llmFindings,
+        dryRun,
+      });
+      console.log(dryRun ? '\n[DRY RUN] LLM review comments not posted' : '\nLLM review comments posted');
     }
 
     // Export prompts if requested

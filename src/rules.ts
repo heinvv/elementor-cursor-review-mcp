@@ -143,7 +143,13 @@ export class RuleLoader {
     const normalized = filePath.replace(/\\/g, '/');
     return Array.from(this.rules.values()).filter((rule) => {
       if (!rule.metadata.filePatterns || rule.metadata.filePatterns.length === 0) return true;
-      return rule.metadata.filePatterns.some((pattern) => minimatch(normalized, pattern, { nocase: true }))
+      return rule.metadata.filePatterns.some((pattern) => {
+        const result = minimatch(normalized, pattern, { nocase: true });
+        // Also try with just the filename for patterns like "*.ts"
+        const basename = normalized.split('/').pop() || '';
+        const basenameResult = minimatch(basename, pattern, { nocase: true });
+        return result || basenameResult;
+      });
     });
   }
 }
