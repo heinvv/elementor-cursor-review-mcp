@@ -1,0 +1,23 @@
+{
+  "name": "elementor-cursor-review-mcp",
+  "version": "0.1.0",
+  "private": true,
+
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "ts-node src/index.ts",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "zod": "^3.23.8",
+    "@octokit/rest": "^20.0.2",
+    "dotenv": "^16.3.1",
+    "gray-matter": "^4.0.3"
+  },
+  "devDependencies": {
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.4"
+  }
+}
+
+
