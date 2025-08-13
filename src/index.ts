@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 import { z } from 'zod';
-import { fetchPR, extractAddedLines, getAddedLinesWithPositions } from './github';
-import { analyzeAddedLines } from './analyze';
-import { postReviewComments } from './post-comments';
-import { RuleLoader } from './rules';
-import { buildLLMPrompt, parseLLMFindings } from './llm';
+import { fetchPR, extractAddedLines, getAddedLinesWithPositions } from './github.js';
+import { analyzeAddedLines } from './analyze.js';
+import { postReviewComments } from './post-comments.js';
+import { RuleLoader } from './rules.js';
+import { buildLLMPrompt, parseLLMFindings } from './llm.js';
 
 // Simulate Cursor's LLM interface for now
 // In a real MCP, this would be provided by Cursor's infrastructure

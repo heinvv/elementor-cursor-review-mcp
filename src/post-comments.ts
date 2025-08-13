@@ -1,5 +1,5 @@
 import { Octokit } from '@octokit/rest'
-import { Finding } from './types'
+import type { Finding } from './types.js'
 import { createHash } from 'crypto'
 
 type PostParams = {

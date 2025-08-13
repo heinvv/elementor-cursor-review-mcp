@@ -1,5 +1,5 @@
-import { Rule } from './rules'
-import { Finding } from './types'
+import type { Rule } from './rules.js'
+import type { Finding } from './types.js'
 
 export function buildLLMPrompt(params: {
   filePath: string

@@ -3,15 +3,13 @@ import { config } from 'dotenv';
 
 config();
 
-const token = process.env.GITHUB_TOKEN;
-if (!token) {
-  console.error('GITHUB_TOKEN environment variable is required');
-  console.error('Create a token at: https://github.com/settings/tokens');
-  console.error('Required scopes: repo (or public_repo for public repos only)');
-  process.exit(1);
+function getOctokit(): Octokit {
+  const token = process.env.GITHUB_TOKEN;
+  if (!token) {
+    throw new Error('GITHUB_TOKEN environment variable is required');
+  }
+  return new Octokit({ auth: token });
 }
-
-const octokit = new Octokit({ auth: token });
 
 export interface PRData {
   number: number;
@@ -29,6 +27,7 @@ export interface PRData {
 
 export async function fetchPR(owner: string, repo: string, prNumber: string): Promise<PRData> {
   try {
+    const octokit = getOctokit();
     const [prResponse, filesResponse] = await Promise.all([
       octokit.rest.pulls.get({
         owner,

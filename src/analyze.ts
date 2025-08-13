@@ -1,4 +1,4 @@
-import { Finding } from './types'
+import type { Finding } from './types.js'
 
 export function analyzeAddedLines(path: string, addedLines: string[]): Finding[] {
   const findings: Finding[] = []

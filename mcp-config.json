@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "elementor-code-review": {
+      "command": "npm",
+      "args": ["run", "mcp"],
+      "cwd": "/Users/janvanvlastuin1981/Local Sites/elementor/app/public/wp-content/elementor-cursor-review-mcp",
+      "env": {
+        "GITHUB_TOKEN": "your_github_token_here"
+      }
+    }
+  }
+}
