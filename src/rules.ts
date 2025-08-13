@@ -40,7 +40,7 @@ export class RuleLoader {
       }
 
       const files = fs.readdirSync(this.rulesDirectory)
-        .filter(file => file.endsWith('.md'))
+        .filter(file => file.endsWith('.md') || file.endsWith('.mdc'))
         .sort();
 
       this.rules.clear();
@@ -65,7 +65,7 @@ export class RuleLoader {
 
   private loadRule(filename: string): Rule | null {
     const filePath = path.join(this.rulesDirectory, filename);
-    const ruleId = path.basename(filename, '.md');
+    const ruleId = path.basename(filename).replace(/\.(md|mdc)$/i, '');
 
     try {
       const fileContent = fs.readFileSync(filePath, 'utf8');
