@@ -53,7 +53,7 @@ Always verify support before refactoring:
   - `.grunt-config/webpack.js` (browsers targets)
   - `.browserslistrc`
 
-Safari 14 is the baseline. Many logical properties (e.g., `inset`) require Safari 14.1.
+Safari >= 15.5 is the current minimum (see project `.browserslistrc`). Align logical properties usage with that baseline.
 
 ## Common mappings
 
@@ -82,9 +82,3 @@ When referring to edges in UI labels/help texts, prefer logical terms:
 
 - Above/Below/Before/After instead of Top/Bottom/Left/Right where appropriate
 - Start/End instead of Left/Right where applicable
-
-## Recent updates
-
-- Editor: ED-10814 — CSS Logical Properties (Done)
-- Frontend: ED-11582 — Frontend Logical Properties (Done)
- 
