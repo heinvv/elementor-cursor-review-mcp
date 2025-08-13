@@ -86,7 +86,7 @@ export function getAddedLinesWithPositions(patch: string): { line: string; posit
       position += 1;
       result.push({ line: raw.slice(1), position });
     } else if (isRemove) {
-      // do not advance position
+      position += 1;
     } else {
       position += 1;
     }

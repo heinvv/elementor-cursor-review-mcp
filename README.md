@@ -20,7 +20,7 @@ npm install
 ```
 
 ### 2. Set Your GitHub Token
-Create a `.env` file:
+Create a `.env` file (this is the only place you need to configure your token):
 ```bash
 cp env.example .env
 # Edit .env and add your GitHub token:
@@ -45,10 +45,7 @@ Add to your `~/.cursor/mcp.json`:
       "args": [
         "/Users/janvanvlastuin1981/Local Sites/elementor/app/public/wp-content/elementor-cursor-review-mcp/dist/mcp-server.js"
       ],
-      "cwd": "/Users/janvanvlastuin1981/Local Sites/elementor/app/public/wp-content/elementor-cursor-review-mcp",
-      "env": {
-        "GITHUB_TOKEN": "your_github_token_here"
-      }
+      "cwd": "/Users/janvanvlastuin1981/Local Sites/elementor/app/public/wp-content/elementor-cursor-review-mcp"
     }
   }
 }
@@ -58,7 +55,7 @@ Add to your `~/.cursor/mcp.json`:
 
 1. Start the SSE server:
 ```bash
-GITHUB_TOKEN="your_token" npm run mcp:sse
+npm run mcp:sse
 ```
 
 2. Add to `~/.cursor/mcp.json`:
@@ -74,6 +71,8 @@ GITHUB_TOKEN="your_token" npm run mcp:sse
 
 ### 5. Restart Cursor
 Restart Cursor completely to load the new MCP server.
+
+> **Note**: The GitHub token is automatically loaded from the `.env` file using dotenv. You don't need to set it in the MCP configuration.
 
 ## Usage in Cursor Chat
 
@@ -149,7 +148,7 @@ Your rule description in Markdown format...
 ### MCP Server Not Starting
 1. **Check Node.js path**: Ensure `/opt/homebrew/bin/node` exists or update path in config
 2. **Check dependencies**: Run `npm install`
-3. **Check GitHub token**: Verify token in `.env` file or environment variables
+3. **Check GitHub token**: Verify `GITHUB_TOKEN` is set in `.env` file
 4. **Check Cursor logs**: Open Cursor Developer Tools for MCP connection logs
 
 ### "No tools or prompts" in Cursor
@@ -164,7 +163,7 @@ Your rule description in Markdown format...
 3. Verify file patterns match your target files
 
 ### GitHub API Issues
-1. **Token scope**: Verify your GitHub token has `repo` scope
+1. **Token scope**: Verify your GitHub token in `.env` has `repo` scope
 2. **Private repos**: Ensure token has access to target repositories
 3. **Rate limits**: Check GitHub API response headers for rate limit status
 4. **Network**: Verify connectivity to `api.github.com`

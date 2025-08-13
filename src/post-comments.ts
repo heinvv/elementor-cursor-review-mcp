@@ -17,7 +17,7 @@ function buildSignature(f: Finding): string {
 }
 
 function formatCommentBody(f: Finding): string {
-  const parts = [f.message]
+  const parts = [`TMZ Review MCP: ${f.message}`]
   if (f.ruleId) parts.push(`(rule: ${f.ruleId})`)
   const sig = buildSignature(f)
   parts.push(`<!-- mcp:sig=${sig} -->`)
