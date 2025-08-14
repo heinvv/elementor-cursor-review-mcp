@@ -60,3 +60,4 @@ Notes:
 - SSE uses SDK-generated session IDs; all client POSTs go to `/messages` with `sessionId` query.
 - Keep Node 18+.
 
+

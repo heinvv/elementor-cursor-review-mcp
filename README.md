@@ -43,7 +43,8 @@ Add to your `~/.cursor/mcp.json`:
     "elementor-code-review": {
       "command": "/opt/homebrew/bin/node",
       "args": [
-        "/Users/janvanvlastuin1981/Local Sites/elementor/app/public/wp-content/elementor-cursor-review-mcp/dist/mcp-server.js"
+        "/Users/janvanvlastuin1981/Local Sites/elementor/app/public/wp-content/elementor-cursor-review-mcp/dist/cli.js",
+        "--stdio"
       ],
       "cwd": "/Users/janvanvlastuin1981/Local Sites/elementor/app/public/wp-content/elementor-cursor-review-mcp"
     }
@@ -53,9 +54,10 @@ Add to your `~/.cursor/mcp.json`:
 
 **Option B: HTTP SSE Transport**
 
-1. Start the SSE server:
+1. Start the HTTP server (defaults to port 3335; override with `PORT`):
 ```bash
-npm run mcp:sse
+npm run build
+PORT=3335 npm run start:http
 ```
 
 2. Add to `~/.cursor/mcp.json`:
@@ -63,7 +65,7 @@ npm run mcp:sse
 {
   "mcpServers": {
     "elementor-code-review-sse": {
-      "url": "http://localhost:3333/sse"
+      "url": "http://localhost:3335/sse"
     }
   }
 }
@@ -139,8 +141,8 @@ Your rule description in Markdown format...
 ## Scripts
 
 - `npm run build` - Compile TypeScript to JavaScript
-- `npm run mcp` - Start stdio MCP server
-- `npm run mcp:sse` - Start HTTP SSE MCP server on port 3333
+- `npm run start:cli` - Start stdio MCP server
+- `npm run start:http` - Start HTTP/Streamable MCP server (SSE at `/sse`) on port 3335 (override with `PORT`)
 - `npm run dev` - Run CLI version for testing
 
 ## Troubleshooting
@@ -155,7 +157,7 @@ Your rule description in Markdown format...
 1. **Restart Cursor completely** (known issue with MCP detection)
 2. **Try SSE transport** if stdio fails
 3. **Clear npm cache**: `rm -rf ~/.npm/_npx && rm -rf node_modules && npm install`
-4. **Check server startup**: Run `npm run mcp` manually to see error messages
+4. **Check server startup**: Run `npm run start:cli` manually to see error messages
 
 ### No Rules Loading
 1. Ensure `rules/` directory exists with `.md` files
@@ -176,27 +178,44 @@ Your rule description in Markdown format...
 npm run dev https://github.com/elementor/hello-commerce/pull/203
 
 # Test stdio MCP server
-npm run mcp
+npm run start:cli
 
-# Test SSE server
-npm run mcp:sse
-curl http://localhost:3333/health
+# Test HTTP/SSE server
+PORT=3335 npm run start:http
+curl http://localhost:3335/health
 ```
 
-### Manual API Testing
+### Manual API Testing (HTTP/Streamable)
 ```bash
-# Test tools list
-curl -X POST http://localhost:3333/mcp \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","method":"tools/list","id":1}'
-
-# Test tool call
-curl -X POST http://localhost:3333/mcp \
+# 1) Initialize a session (no session header on first call)
+curl -i -X POST http://localhost:3335/mcp \
   -H "Content-Type: application/json" \
   -d '{
     "jsonrpc":"2.0",
+    "id":"1",
+    "method":"initialize",
+    "params":{
+      "protocolVersion":"2024-11-05",
+      "capabilities":{}
+    }
+  }'
+
+# Note the `mcp-session-id` header from the response, then use it below
+
+# 2) List tools using the session
+curl -X POST http://localhost:3335/mcp \
+  -H "Content-Type: application/json" \
+  -H "mcp-session-id: <SESSION_ID_FROM_STEP_1>" \
+  -d '{"jsonrpc":"2.0","method":"tools/list","id":"2"}'
+
+# 3) Call a tool
+curl -X POST http://localhost:3335/mcp \
+  -H "Content-Type: application/json" \
+  -H "mcp-session-id: <SESSION_ID_FROM_STEP_1>" \
+  -d '{
+    "jsonrpc":"2.0",
     "method":"tools/call",
-    "id":1,
+    "id":"3",
     "params":{
       "name":"show_coding_rules",
       "arguments":{}
@@ -209,16 +228,17 @@ curl -X POST http://localhost:3333/mcp \
 ```
 elementor-cursor-review-mcp/
 ├── src/
-│   ├── mcp-server.ts        # Stdio MCP server
-│   ├── mcp-server-sse.ts    # HTTP SSE MCP server
-│   ├── github.ts            # GitHub API integration
-│   ├── rules.ts             # Rule loading and matching
-│   ├── analyze.ts           # Heuristic code analysis
-│   ├── llm.ts               # LLM prompt building
-│   ├── post-comments.ts     # GitHub comment posting
-│   └── types.ts             # TypeScript type definitions
-├── rules/                   # Coding rule definitions
-├── dist/                    # Compiled JavaScript output
+│   ├── cli.ts              # Entry point; selects stdio or HTTP based on flags/env
+│   ├── mcp.ts              # MCP server definition and tools
+│   ├── server.ts           # HTTP + SSE transports and routes
+│   ├── github.ts           # GitHub API integration
+│   ├── rules.ts            # Rule loading and matching
+│   ├── analyze.ts          # Heuristic code analysis
+│   ├── llm.ts              # LLM prompt building
+│   ├── post-comments.ts    # GitHub comment posting
+│   └── types.ts            # TypeScript type definitions
+├── rules/                  # Coding rule definitions
+├── dist/                   # Compiled JavaScript output
 └── README.md               # This file
 ```
 
