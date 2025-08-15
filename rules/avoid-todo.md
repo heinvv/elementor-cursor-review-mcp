@@ -3,6 +3,11 @@ title: "Avoid TODO Comments"
 severity: "warning"
 category: "maintainability"
 filePatterns: ["*.ts", "*.js", "*.php", "*.jsx", "*.tsx"]
+rules:
+  - id: "avoid-todo-comments"
+    pattern: "\\bTODO\\b"
+    message: "Avoid TODO comments. Create a ticket and reference it explicitly or remove the comment."
+    severity: "warning"
 examples:
   - bad: "// TODO: Fix this later"
   - good: "// FIXME: Handle edge case for null values (Ticket: ABC-123)"
